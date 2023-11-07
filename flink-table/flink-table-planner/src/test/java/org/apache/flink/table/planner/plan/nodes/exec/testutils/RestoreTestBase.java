@@ -43,8 +43,9 @@ import org.apache.flink.table.test.program.TestStep.TestKind;
 import org.apache.flink.test.junit5.MiniClusterExtension;
 
 import org.apache.commons.collections.CollectionUtils;
-import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.api.TestMethodOrder;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -63,6 +64,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -78,6 +80,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @ExtendWith(MiniClusterExtension.class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+@TestMethodOrder(org.junit.jupiter.api.MethodOrderer.OrderAnnotation.class)
 public abstract class RestoreTestBase implements TableTestProgramRunner {
 
     private final Class<? extends ExecNode> execNodeUnderTest;
@@ -120,9 +123,10 @@ public abstract class RestoreTestBase implements TableTestProgramRunner {
      * Execute this test to generate test files. Remember to be using the correct branch when
      * generating the test files.
      */
-    @Disabled
+    //    @Disabled
     @ParameterizedTest
     @MethodSource("supportedPrograms")
+    @Order(0)
     public void generateTestSetupFiles(TableTestProgram program) throws Exception {
         final TableEnvironment tEnv =
                 TableEnvironment.create(EnvironmentSettings.inStreamingMode());
@@ -130,6 +134,7 @@ public abstract class RestoreTestBase implements TableTestProgramRunner {
                 .set(
                         TableConfigOptions.PLAN_COMPILE_CATALOG_OBJECTS,
                         TableConfigOptions.CatalogPlanCompilation.SCHEMA);
+        tEnv.getConfig().set(TableConfigOptions.PLAN_FORCE_RECOMPILE, true);
         for (SourceTestStep sourceTestStep : program.getSetupSourceTestSteps()) {
             final String id = TestValuesTableFactory.registerData(sourceTestStep.dataBeforeRestore);
             final Map<String, String> options = new HashMap<>();
@@ -153,7 +158,18 @@ public abstract class RestoreTestBase implements TableTestProgramRunner {
                                 CollectionUtils.isEqualCollection(
                                         TestValuesTableFactory.getRawResultsAsStrings(tableName),
                                         sinkTestStep.getExpectedBeforeRestoreAsStrings());
+                        System.out.println(
+                                "Got results: "
+                                        + shouldTakeSavepoint
+                                        + " : \n"
+                                        + sinkTestStep.getExpectedBeforeRestoreAsStrings()
+                                        + "\n"
+                                        + TestValuesTableFactory.getRawResultsAsStrings(tableName));
                         if (shouldTakeSavepoint) {
+                            // Need to add boolean to show that we have received all the expected
+                            // values.
+                            // If we receive more, throw an exception.
+                            System.out.println("Taking save point!");
                             future.complete(null);
                         }
                     });
@@ -172,7 +188,10 @@ public abstract class RestoreTestBase implements TableTestProgramRunner {
         compiledPlan.writeToFile(getPlanPath(program, getLatestMetadata()));
 
         final TableResult tableResult = compiledPlan.execute();
-        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).get();
+        CompletableFuture<Void> all =
+                CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]));
+        // Wait on all to be completed
+        all.get(5, TimeUnit.SECONDS);
         final JobClient jobClient = tableResult.getJobClient().get();
         final String savepoint =
                 jobClient
@@ -181,12 +200,25 @@ public abstract class RestoreTestBase implements TableTestProgramRunner {
         CommonTestUtils.waitForJobStatus(jobClient, Collections.singletonList(JobStatus.FINISHED));
         final Path savepointPath = Paths.get(new URI(savepoint));
         final Path savepointDirPath = getSavepointPath(program, getLatestMetadata());
-        Files.createDirectories(savepointDirPath);
+        // Delete directory savepointDirPath if it already exists
+        if (Files.exists(savepointDirPath)) {
+            Files.walk(savepointDirPath).map(Path::toFile).forEach(java.io.File::delete);
+        } else {
+            Files.createDirectories(savepointDirPath);
+        }
         Files.move(savepointPath, savepointDirPath, StandardCopyOption.ATOMIC_MOVE);
+
+        for (SinkTestStep sinkTestStep : program.getSetupSinkTestSteps()) {
+            final CompletableFuture<Object> future = new CompletableFuture<>();
+            futures.add(future);
+            final String tableName = sinkTestStep.name;
+            TestValuesTableFactory.unregisterLocalRawResultsObserver(tableName);
+        }
     }
 
     @ParameterizedTest
     @MethodSource("createSpecs")
+    @Order(1)
     void testRestore(TableTestProgram program, ExecNodeMetadata metadata) throws Exception {
         final EnvironmentSettings settings = EnvironmentSettings.inStreamingMode();
         final SavepointRestoreSettings restoreSettings =
@@ -223,6 +255,7 @@ public abstract class RestoreTestBase implements TableTestProgramRunner {
         final CompiledPlan compiledPlan =
                 tEnv.loadPlan(PlanReference.fromFile(getPlanPath(program, metadata)));
         compiledPlan.execute().await();
+        System.out.println("Got here");
         for (SinkTestStep sinkTestStep : program.getSetupSinkTestSteps()) {
             assertThat(TestValuesTableFactory.getRawResultsAsStrings(sinkTestStep.name))
                     .containsExactlyInAnyOrder(
