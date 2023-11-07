@@ -172,6 +172,10 @@ final class TestValuesRuntimeFunctions {
         localRawResultsObservers.computeIfAbsent(tableName, n -> new ArrayList<>()).add(observer);
     }
 
+    static void unregisterLocalRawResultsObserver(String tableName) {
+        localRawResultsObservers.remove(tableName);
+    }
+
     static void clearResults() {
         synchronized (LOCK) {
             globalRawResult.clear();

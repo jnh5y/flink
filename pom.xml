@@ -175,7 +175,7 @@ under the License.
 		<orc.version>1.5.6</orc.version>
 		<japicmp.referenceVersion>1.17.0</japicmp.referenceVersion>
 		<japicmp.outputDir>tools/japicmp-output</japicmp.outputDir>
-		<spotless.version>2.27.1</spotless.version>
+		<spotless.version>2.35.0</spotless.version>
 		<spotless.scalafmt.version>3.4.3</spotless.scalafmt.version>
 		<spotless.delimiter>package</spotless.delimiter>
 		<spotless.license.header>
@@ -2119,6 +2119,9 @@ under the License.
 					<artifactId>spotless-maven-plugin</artifactId>
 					<version>${spotless.version}</version>
 					<configuration>
+						<upToDateChecking>
+							<enabled>true</enabled>
+						</upToDateChecking>
 						<java>
 							<googleJavaFormat>
 								<version>1.7</version>
