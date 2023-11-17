@@ -48,10 +48,10 @@ public class GroupWindowAggregateTestPrograms {
         Row.of("2020-10-10 00:00:41", 1, 3d, 3f, new BigDecimal("4.44"), "Comment#4", "a")
     };
     static final Row[] AFTER_DATA_PROC_TIME = {
-            Row.of("2020-10-10 00:00:41", 10, 3d, 3f, new BigDecimal("4.44"), "Comment#4", "c"),
-            Row.of("2020-10-10 00:00:42", 11, 4d, 4f, new BigDecimal("5.44"), "Comment#5", "d"),
-            Row.of("2020-10-10 00:00:43", 12, 5d, 5f, new BigDecimal("6.44"), "Comment#6", "c"),
-            Row.of("2020-10-10 00:00:44", 13, 6d, 6f, new BigDecimal("7.44"), "Comment#7", "d")
+        Row.of("2020-10-10 00:00:41", 10, 3d, 3f, new BigDecimal("4.44"), "Comment#4", "a"),
+        Row.of("2020-10-10 00:00:42", 11, 4d, 4f, new BigDecimal("5.44"), "Comment#5", "d"),
+        Row.of("2020-10-10 00:00:43", 12, 5d, 5f, new BigDecimal("6.44"), "Comment#6", "c"),
+        Row.of("2020-10-10 00:00:44", 13, 6d, 6f, new BigDecimal("7.44"), "Comment#7", "d")
     };
 
     static final SourceTestStep SOURCE =
@@ -68,11 +68,31 @@ public class GroupWindowAggregateTestPrograms {
                             "`proctime` AS PROCTIME()",
                             "WATERMARK for `rowtime` AS `rowtime` - INTERVAL '1' SECOND")
                     .producedBeforeRestore(BEFORE_DATA)
-                    .producedAfterRestore(AFTER_DATA)
+                    .producedAfterRestore(AFTER_DATA_PROC_TIME)
                     .build();
 
-    static final TableTestProgram GROUP_TUMBLE_WINDOW =
-            TableTestProgram.of("group-tumble-window", "group by using tumbling window")
+    static final SourceTestStep NON_TERMINATING_SOURCE =
+            SourceTestStep.newBuilder("source_t")
+                    .addOption("terminating", "false")
+                    .addSchema(
+                            "ts STRING",
+                            "a_int INT",
+                            "b_double DOUBLE",
+                            "c_float FLOAT",
+                            "d_bigdec DECIMAL(10, 2)",
+                            "`comment` STRING",
+                            "name STRING",
+                            "`rowtime` AS TO_TIMESTAMP(`ts`)",
+                            "`proctime` AS PROCTIME()",
+                            "WATERMARK for `rowtime` AS `rowtime` - INTERVAL '1' SECOND")
+                    .producedBeforeRestore(BEFORE_DATA)
+                    .producedAfterRestore(AFTER_DATA_PROC_TIME)
+                    .build();
+
+    static final TableTestProgram GROUP_TUMBLE_WINDOW_EVENT_TIME =
+            TableTestProgram.of(
+                            "group-tumble-window-event-time",
+                            "group by using tumbling window with event time")
                     .setupTableSource(SOURCE)
                     .setupTableSink(
                             SinkTestStep.newBuilder("sink_t")
@@ -91,7 +111,9 @@ public class GroupWindowAggregateTestPrograms {
                                     .consumedAfterRestore(
                                             "+I[b, 2020-10-10T00:00:30, 2020-10-10T00:00:35, 1, 1, 1]",
                                             "+I[null, 2020-10-10T00:00:30, 2020-10-10T00:00:35, 1, 7, 0]",
-                                            "+I[a, 2020-10-10T00:00:40, 2020-10-10T00:00:45, 1, 1, 1]")
+                                            "+I[a, 2020-10-10T00:00:40, 2020-10-10T00:00:45, 1, 10, 1]",
+                                            "+I[c, 2020-10-10T00:00:40, 2020-10-10T00:00:45, 1, 12, 1]",
+                                            "+I[d, 2020-10-10T00:00:40, 2020-10-10T00:00:45, 2, 24, 2]")
                                     .build())
                     .runSql(
                             "INSERT INTO sink_t SELECT "
@@ -106,8 +128,10 @@ public class GroupWindowAggregateTestPrograms {
                     .build();
 
     static final TableTestProgram GROUP_TUMBLE_WINDOW_PROC_TIME =
-            TableTestProgram.of("group-tumble-window-proc-time", "group by using tumbling window processing time")
-                    .setupTableSource(SOURCE)
+            TableTestProgram.of(
+                            "group-tumble-window-proc-time",
+                            "group by using tumbling window with processing time")
+                    .setupTableSource(NON_TERMINATING_SOURCE)
                     .setupTableSink(
                             SinkTestStep.newBuilder("sink_t")
                                     .addSchema(
@@ -119,7 +143,8 @@ public class GroupWindowAggregateTestPrograms {
                                             "+I[a, 6, 18, 3]",
                                             "+I[null, 1, 7, 0]",
                                             "+I[b, 4, 14, 3]")
-                                    .consumedAfterRestore("+I[a, 1, 1, 1]")
+                                    .consumedAfterRestore(
+                                            "+I[a, 1, 10, 1]", "+I[c, 1, 12, 1]", "+I[d, 2, 24, 2]")
                                     .build())
                     .runSql(
                             "INSERT INTO sink_t SELECT "
@@ -131,8 +156,10 @@ public class GroupWindowAggregateTestPrograms {
                                     + "GROUP BY name, TUMBLE(`proctime`, INTERVAL '5' SECOND)")
                     .build();
 
-    static final TableTestProgram GROUP_HOP_WINDOW =
-            TableTestProgram.of("group-hop-window", "group by using hopping window")
+    static final TableTestProgram GROUP_HOP_WINDOW_EVENT_TIME =
+            TableTestProgram.of(
+                            "group-hop-window-event-time",
+                            "group by using hopping window with event time")
                     .setupTableSource(SOURCE)
                     .setupTableSink(
                             SinkTestStep.newBuilder("sink_t")
@@ -151,7 +178,11 @@ public class GroupWindowAggregateTestPrograms {
                                             "+I[b, 1]",
                                             "+I[null, 1]",
                                             "+I[a, 1]",
-                                            "+I[a, 1]")
+                                            "+I[d, 2]",
+                                            "+I[c, 1]",
+                                            "+I[a, 1]",
+                                            "+I[c, 1]",
+                                            "+I[d, 2]")
                                     .build())
                     .runSql(
                             "INSERT INTO sink_t SELECT "
@@ -161,8 +192,41 @@ public class GroupWindowAggregateTestPrograms {
                                     + "GROUP BY name, HOP(rowtime, INTERVAL '5' SECOND, INTERVAL '10' SECOND)")
                     .build();
 
-    static final TableTestProgram GROUP_SESSION_WINDOW =
-            TableTestProgram.of("group-session-window", "group by using session window")
+    static final TableTestProgram GROUP_HOP_WINDOW_PROC_TIME =
+            TableTestProgram.of(
+                            "group-hop-window-proc-time",
+                            "group by using hopping window with processing time")
+                    .setupTableSource(NON_TERMINATING_SOURCE)
+                    .setupTableSink(
+                            SinkTestStep.newBuilder("sink_t")
+                                    .addSchema("name STRING", "cnt BIGINT")
+                                    .consumedBeforeRestore(
+                                            "+I[a, 6]",
+                                            "+I[b, 4]",
+                                            "+I[null, 1]",
+                                            "+I[a, 6]",
+                                            "+I[null, 1]",
+                                            "+I[b, 4]")
+                                    .consumedAfterRestore(
+                                            "+I[a, 1]",
+                                            "+I[d, 2]",
+                                            "+I[c, 1]",
+                                            "+I[a, 1]",
+                                            "+I[c, 1]",
+                                            "+I[d, 2]")
+                                    .build())
+                    .runSql(
+                            "INSERT INTO sink_t SELECT "
+                                    + "name, "
+                                    + "COUNT(*) "
+                                    + "FROM source_t "
+                                    + "GROUP BY name, HOP(proctime, INTERVAL '5' SECOND, INTERVAL '10' SECOND)")
+                    .build();
+
+    static final TableTestProgram GROUP_SESSION_WINDOW_EVENT_TIME =
+            TableTestProgram.of(
+                            "group-session-window-event-time",
+                            "group by using session window with event time")
                     .setupTableSource(SOURCE)
                     .setupTableSink(
                             SinkTestStep.newBuilder("sink_t")
@@ -177,5 +241,24 @@ public class GroupWindowAggregateTestPrograms {
                                     + "COUNT(*) "
                                     + "FROM source_t "
                                     + "GROUP BY name, SESSION(rowtime, INTERVAL '3' SECOND)")
+                    .build();
+
+    static final TableTestProgram GROUP_SESSION_WINDOW_PROC_TIME =
+            TableTestProgram.of(
+                            "group-session-window-proc-time",
+                            "group by using session window with processing time")
+                    .setupTableSource(NON_TERMINATING_SOURCE)
+                    .setupTableSink(
+                            SinkTestStep.newBuilder("sink_t")
+                                    .addSchema("name STRING", "cnt BIGINT")
+                                    .consumedBeforeRestore("+I[a, 6]", "+I[null, 1]", "+I[b, 4]")
+                                    .consumedAfterRestore("+I[a, 1]", "+I[c, 1]", "+I[d, 2]")
+                                    .build())
+                    .runSql(
+                            "INSERT INTO sink_t SELECT "
+                                    + "name, "
+                                    + "COUNT(*) "
+                                    + "FROM source_t "
+                                    + "GROUP BY name, SESSION(proctime, INTERVAL '3' SECOND)")
                     .build();
 }

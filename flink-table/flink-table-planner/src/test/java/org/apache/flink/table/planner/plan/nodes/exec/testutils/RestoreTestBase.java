@@ -200,6 +200,8 @@ public abstract class RestoreTestBase implements TableTestProgramRunner {
                 .set(
                         TableConfigOptions.PLAN_RESTORE_CATALOG_OBJECTS,
                         TableConfigOptions.CatalogPlanRestore.IDENTIFIER);
+
+        boolean isTerminatingSource = true;
         for (SourceTestStep sourceTestStep : program.getSetupSourceTestSteps()) {
             final String id = TestValuesTableFactory.registerData(sourceTestStep.dataAfterRestore);
             final Map<String, String> options = new HashMap<>();
@@ -208,9 +210,34 @@ public abstract class RestoreTestBase implements TableTestProgramRunner {
             options.put("disable-lookup", "true");
             options.put("runtime-source", "NewSource");
             sourceTestStep.apply(tEnv, options);
+            if (sourceTestStep.options.getOrDefault("terminating", "true").equals("false")) {
+                isTerminatingSource = false;
+            }
         }
 
+        final List<CompletableFuture<?>> futures = new ArrayList<>();
+
         for (SinkTestStep sinkTestStep : program.getSetupSinkTestSteps()) {
+            if (!isTerminatingSource) {
+                final CompletableFuture<Object> future = new CompletableFuture<>();
+                futures.add(future);
+                final String tableName = sinkTestStep.name;
+                TestValuesTableFactory.registerLocalRawResultsObserver(
+                        tableName,
+                        (integer, strings) -> {
+                            List<String> results = new ArrayList<>();
+                            results.addAll(sinkTestStep.getExpectedBeforeRestoreAsStrings());
+                            results.addAll(sinkTestStep.getExpectedAfterRestoreAsStrings());
+                            final boolean shouldComplete =
+                                    CollectionUtils.isEqualCollection(
+                                            TestValuesTableFactory.getRawResultsAsStrings(
+                                                    tableName),
+                                            results);
+                            if (shouldComplete) {
+                                future.complete(null);
+                            }
+                        });
+            }
             final Map<String, String> options = new HashMap<>();
             options.put("connector", "values");
             options.put("disable-lookup", "true");
@@ -222,7 +249,14 @@ public abstract class RestoreTestBase implements TableTestProgramRunner {
 
         final CompiledPlan compiledPlan =
                 tEnv.loadPlan(PlanReference.fromFile(getPlanPath(program, metadata)));
-        compiledPlan.execute().await();
+
+        if (!isTerminatingSource) {
+            compiledPlan.execute();
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).get();
+        } else {
+            compiledPlan.execute().await();
+        }
+
         for (SinkTestStep sinkTestStep : program.getSetupSinkTestSteps()) {
             assertThat(TestValuesTableFactory.getRawResultsAsStrings(sinkTestStep.name))
                     .containsExactlyInAnyOrder(

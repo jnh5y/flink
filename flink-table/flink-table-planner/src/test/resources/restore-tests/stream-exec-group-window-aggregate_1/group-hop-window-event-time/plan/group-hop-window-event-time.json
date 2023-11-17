@@ -1,7 +1,7 @@
 {
   "flinkVersion" : "1.19",
   "nodes" : [ {
-    "id" : 1,
+    "id" : 15,
     "type" : "stream-exec-table-source-scan_1",
     "scanTableSource" : {
       "table" : {
@@ -45,6 +45,23 @@
                 },
                 "serializableString" : "TO_TIMESTAMP(`ts`)"
               }
+            }, {
+              "name" : "proctime",
+              "kind" : "COMPUTED",
+              "expression" : {
+                "rexNode" : {
+                  "kind" : "CALL",
+                  "internalName" : "$PROCTIME$1",
+                  "operands" : [ ],
+                  "type" : {
+                    "type" : "TIMESTAMP_WITH_LOCAL_TIME_ZONE",
+                    "nullable" : false,
+                    "precision" : 3,
+                    "kind" : "PROCTIME"
+                  }
+                },
+                "serializableString" : "PROCTIME()"
+              }
             } ],
             "watermarkSpecs" : [ {
               "rowtimeAttribute" : "rowtime",
@@ -85,7 +102,7 @@
     "description" : "TableSourceScan(table=[[default_catalog, default_database, source_t, project=[name, ts], metadata=[]]], fields=[name, ts])",
     "inputProperties" : [ ]
   }, {
-    "id" : 2,
+    "id" : 16,
     "type" : "stream-exec-calc_1",
     "projection" : [ {
       "kind" : "INPUT_REF",
@@ -112,7 +129,7 @@
     "outputType" : "ROW<`name` VARCHAR(2147483647), `rowtime` TIMESTAMP(3)>",
     "description" : "Calc(select=[name, TO_TIMESTAMP(ts) AS rowtime])"
   }, {
-    "id" : 3,
+    "id" : 17,
     "type" : "stream-exec-watermark-assigner_1",
     "watermarkExpr" : {
       "kind" : "CALL",
@@ -153,7 +170,7 @@
     },
     "description" : "WatermarkAssigner(rowtime=[rowtime], watermark=[(rowtime - 1000:INTERVAL SECOND)])"
   }, {
-    "id" : 4,
+    "id" : 18,
     "type" : "stream-exec-exchange_1",
     "inputProperties" : [ {
       "requiredDistribution" : {
@@ -179,7 +196,7 @@
     },
     "description" : "Exchange(distribution=[hash[name]])"
   }, {
-    "id" : 5,
+    "id" : 19,
     "type" : "stream-exec-group-window-aggregate_1",
     "configuration" : {
       "table.exec.mini-batch.enabled" : "false",
@@ -199,7 +216,7 @@
       "type" : "BIGINT NOT NULL"
     } ],
     "window" : {
-      "kind" : "SESSION",
+      "kind" : "SLIDING",
       "alias" : {
         "name" : "w$",
         "type" : {
@@ -218,7 +235,9 @@
           "kind" : "ROWTIME"
         }
       },
-      "gap" : "PT3S"
+      "isTimeWindow" : true,
+      "size" : "PT10S",
+      "slide" : "PT5S"
     },
     "namedWindowProperties" : [ ],
     "needRetraction" : false,
@@ -230,9 +249,9 @@
       "priority" : 0
     } ],
     "outputType" : "ROW<`name` VARCHAR(2147483647), `EXPR$1` BIGINT NOT NULL>",
-    "description" : "GroupWindowAggregate(groupBy=[name], window=[SessionGroupWindow('w$, rowtime, 3000)], select=[name, COUNT(*) AS EXPR$1])"
+    "description" : "GroupWindowAggregate(groupBy=[name], window=[SlidingGroupWindow('w$, rowtime, 10000, 5000)], select=[name, COUNT(*) AS EXPR$1])"
   }, {
-    "id" : 6,
+    "id" : 20,
     "type" : "stream-exec-sink_1",
     "configuration" : {
       "table.exec.sink.keyed-shuffle" : "AUTO",
@@ -271,36 +290,36 @@
     "description" : "Sink(table=[default_catalog.default_database.sink_t], fields=[name, EXPR$1])"
   } ],
   "edges" : [ {
-    "source" : 1,
-    "target" : 2,
+    "source" : 15,
+    "target" : 16,
     "shuffle" : {
       "type" : "FORWARD"
     },
     "shuffleMode" : "PIPELINED"
   }, {
-    "source" : 2,
-    "target" : 3,
+    "source" : 16,
+    "target" : 17,
     "shuffle" : {
       "type" : "FORWARD"
     },
     "shuffleMode" : "PIPELINED"
   }, {
-    "source" : 3,
-    "target" : 4,
+    "source" : 17,
+    "target" : 18,
     "shuffle" : {
       "type" : "FORWARD"
     },
     "shuffleMode" : "PIPELINED"
   }, {
-    "source" : 4,
-    "target" : 5,
+    "source" : 18,
+    "target" : 19,
     "shuffle" : {
       "type" : "FORWARD"
     },
     "shuffleMode" : "PIPELINED"
   }, {
-    "source" : 5,
-    "target" : 6,
+    "source" : 19,
+    "target" : 20,
     "shuffle" : {
       "type" : "FORWARD"
     },
