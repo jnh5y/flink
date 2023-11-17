@@ -47,6 +47,12 @@ public class GroupWindowAggregateTestPrograms {
     static final Row[] AFTER_DATA = {
         Row.of("2020-10-10 00:00:41", 1, 3d, 3f, new BigDecimal("4.44"), "Comment#4", "a")
     };
+    static final Row[] AFTER_DATA_PROC_TIME = {
+            Row.of("2020-10-10 00:00:41", 10, 3d, 3f, new BigDecimal("4.44"), "Comment#4", "c"),
+            Row.of("2020-10-10 00:00:42", 11, 4d, 4f, new BigDecimal("5.44"), "Comment#5", "d"),
+            Row.of("2020-10-10 00:00:43", 12, 5d, 5f, new BigDecimal("6.44"), "Comment#6", "c"),
+            Row.of("2020-10-10 00:00:44", 13, 6d, 6f, new BigDecimal("7.44"), "Comment#7", "d")
+    };
 
     static final SourceTestStep SOURCE =
             SourceTestStep.newBuilder("source_t")
@@ -59,6 +65,7 @@ public class GroupWindowAggregateTestPrograms {
                             "`comment` STRING",
                             "name STRING",
                             "`rowtime` AS TO_TIMESTAMP(`ts`)",
+                            "`proctime` AS PROCTIME()",
                             "WATERMARK for `rowtime` AS `rowtime` - INTERVAL '1' SECOND")
                     .producedBeforeRestore(BEFORE_DATA)
                     .producedAfterRestore(AFTER_DATA)
@@ -96,6 +103,32 @@ public class GroupWindowAggregateTestPrograms {
                                     + "COUNT(DISTINCT `comment`) "
                                     + "FROM source_t "
                                     + "GROUP BY name, TUMBLE(rowtime, INTERVAL '5' SECOND)")
+                    .build();
+
+    static final TableTestProgram GROUP_TUMBLE_WINDOW_PROC_TIME =
+            TableTestProgram.of("group-tumble-window-proc-time", "group by using tumbling window processing time")
+                    .setupTableSource(SOURCE)
+                    .setupTableSink(
+                            SinkTestStep.newBuilder("sink_t")
+                                    .addSchema(
+                                            "name STRING",
+                                            "cnt BIGINT",
+                                            "sum_int INT",
+                                            "distinct_cnt BIGINT")
+                                    .consumedBeforeRestore(
+                                            "+I[a, 6, 18, 3]",
+                                            "+I[null, 1, 7, 0]",
+                                            "+I[b, 4, 14, 3]")
+                                    .consumedAfterRestore("+I[a, 1, 1, 1]")
+                                    .build())
+                    .runSql(
+                            "INSERT INTO sink_t SELECT "
+                                    + "name, "
+                                    + "COUNT(*), "
+                                    + "SUM(a_int), "
+                                    + "COUNT(DISTINCT `comment`) "
+                                    + "FROM source_t "
+                                    + "GROUP BY name, TUMBLE(`proctime`, INTERVAL '5' SECOND)")
                     .build();
 
     static final TableTestProgram GROUP_HOP_WINDOW =
