@@ -157,7 +157,7 @@ public abstract class RestoreTestBase implements TableTestProgramRunner {
                     (integer, strings) -> {
                         final boolean shouldTakeSavepoint =
                                 CollectionUtils.isEqualCollection(
-                                        TestValuesTableFactory.getRawResultsAsStrings(tableName),
+                                        TestValuesTableFactory.getResultsAsStrings(tableName),
                                         sinkTestStep.getExpectedBeforeRestoreAsStrings());
                         System.out.println(
                                 "Got results: "
@@ -210,10 +210,7 @@ public abstract class RestoreTestBase implements TableTestProgramRunner {
         Files.move(savepointPath, savepointDirPath, StandardCopyOption.ATOMIC_MOVE);
 
         for (SinkTestStep sinkTestStep : program.getSetupSinkTestSteps()) {
-            final CompletableFuture<Object> future = new CompletableFuture<>();
-            futures.add(future);
-            final String tableName = sinkTestStep.name;
-            TestValuesTableFactory.unregisterLocalRawResultsObserver(tableName);
+            TestValuesTableFactory.unregisterLocalRawResultsObserver(sinkTestStep.name);
         }
     }
 
@@ -255,6 +252,7 @@ public abstract class RestoreTestBase implements TableTestProgramRunner {
                 final CompletableFuture<Object> future = new CompletableFuture<>();
                 futures.add(future);
                 final String tableName = sinkTestStep.name;
+                System.out.println("Registering observer for " + sinkTestStep.name);
                 TestValuesTableFactory.registerLocalRawResultsObserver(
                         tableName,
                         (integer, strings) -> {
@@ -290,9 +288,10 @@ public abstract class RestoreTestBase implements TableTestProgramRunner {
         final CompiledPlan compiledPlan =
                 tEnv.loadPlan(PlanReference.fromFile(getPlanPath(program, metadata)));
 
+        TableResult tableResult = null;
         if (!isTerminatingSource) {
             System.out.println("Waiting for all results for not terminating source");
-            compiledPlan.execute();
+            tableResult = compiledPlan.execute();
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).get();
         } else {
             System.out.println("Waiting for all results for terminating source");
@@ -301,7 +300,9 @@ public abstract class RestoreTestBase implements TableTestProgramRunner {
         System.out.println("Got here");
 
         for (SinkTestStep sinkTestStep : program.getSetupSinkTestSteps()) {
-            assertThat(TestValuesTableFactory.getRawResultsAsStrings(sinkTestStep.name))
+            // TODO: Fix this.  If the records after a restore cause retractions,
+            // this approach will not work.
+            assertThat(TestValuesTableFactory.getResultsAsStrings(sinkTestStep.name))
                     .containsExactlyInAnyOrder(
                             Stream.concat(
                                             sinkTestStep.getExpectedBeforeRestoreAsStrings()
@@ -309,6 +310,18 @@ public abstract class RestoreTestBase implements TableTestProgramRunner {
                                             sinkTestStep.getExpectedAfterRestoreAsStrings()
                                                     .stream())
                                     .toArray(String[]::new));
+        }
+        for (SinkTestStep sinkTestStep : program.getSetupSinkTestSteps()) {
+            System.out.println("Unregistering observer for " + sinkTestStep.name);
+            TestValuesTableFactory.unregisterLocalRawResultsObserver(sinkTestStep.name);
+        }
+
+        if (!isTerminatingSource) {
+            final JobClient jobClient = tableResult.getJobClient().get();
+//            final String savepoint =
+                    jobClient.cancel().get(5, TimeUnit.SECONDS);
+//                            .stopWithSavepoint(false, tmpDir.toString(), SavepointFormatType.DEFAULT)
+//                            .get();
         }
     }
 

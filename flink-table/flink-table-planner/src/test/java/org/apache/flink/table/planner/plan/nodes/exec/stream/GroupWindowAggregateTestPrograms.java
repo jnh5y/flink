@@ -233,7 +233,7 @@ public class GroupWindowAggregateTestPrograms {
                                     .addSchema("name STRING", "cnt BIGINT")
                                     .consumedBeforeRestore(
                                             "+I[a, 4]", "+I[b, 2]", "+I[a, 1]", "+I[b, 1]")
-                                    .consumedAfterRestore("+I[null, 1]", "+I[b, 1]", "+I[a, 1]")
+                                    .consumedAfterRestore("+I[null, 1]", "+I[b, 1]", "+I[a, 1]", "+I[c, 1]", "+I[d, 2]")
                                     .build())
                     .runSql(
                             "INSERT INTO sink_t SELECT "

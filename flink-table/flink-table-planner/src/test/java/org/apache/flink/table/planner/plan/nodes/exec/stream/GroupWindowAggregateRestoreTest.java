@@ -35,10 +35,10 @@ public class GroupWindowAggregateRestoreTest extends RestoreTestBase {
     public List<TableTestProgram> programs() {
         return Arrays.asList(
                 GroupWindowAggregateTestPrograms.GROUP_TUMBLE_WINDOW_EVENT_TIME,
-                GroupWindowAggregateTestPrograms.GROUP_TUMBLE_WINDOW_PROC_TIME,
                 GroupWindowAggregateTestPrograms.GROUP_HOP_WINDOW_EVENT_TIME,
-                GroupWindowAggregateTestPrograms.GROUP_HOP_WINDOW_PROC_TIME,
                 GroupWindowAggregateTestPrograms.GROUP_SESSION_WINDOW_EVENT_TIME,
+                GroupWindowAggregateTestPrograms.GROUP_TUMBLE_WINDOW_PROC_TIME,
+                GroupWindowAggregateTestPrograms.GROUP_HOP_WINDOW_PROC_TIME,
                 GroupWindowAggregateTestPrograms.GROUP_SESSION_WINDOW_PROC_TIME);
     }
 }
