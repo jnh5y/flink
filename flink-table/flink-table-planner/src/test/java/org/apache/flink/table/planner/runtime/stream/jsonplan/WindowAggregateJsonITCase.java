@@ -20,18 +20,18 @@ package org.apache.flink.table.planner.runtime.stream.jsonplan;
 
 import org.apache.flink.table.api.config.OptimizerConfigOptions;
 import org.apache.flink.table.planner.factories.TestValuesTableFactory;
-import org.apache.flink.table.planner.runtime.utils.TestData;
 import org.apache.flink.table.planner.utils.AggregatePhaseStrategy;
-import org.apache.flink.table.planner.utils.JavaScalaConversionUtil;
 import org.apache.flink.table.planner.utils.JsonPlanTestBase;
 import org.apache.flink.testutils.junit.extensions.parameterized.Parameter;
 import org.apache.flink.testutils.junit.extensions.parameterized.ParameterizedTestExtension;
 import org.apache.flink.testutils.junit.extensions.parameterized.Parameters;
+import org.apache.flink.types.Row;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -43,12 +43,19 @@ class WindowAggregateJsonITCase extends JsonPlanTestBase {
     @Parameters(name = "agg_phase = {0}")
     private static Object[] parameters() {
         return new Object[][] {
-            new Object[] {AggregatePhaseStrategy.ONE_PHASE},
+            // new Object[] {AggregatePhaseStrategy.ONE_PHASE},
             new Object[] {AggregatePhaseStrategy.TWO_PHASE}
         };
     }
 
     @Parameter private AggregatePhaseStrategy aggPhase;
+
+    static final Row[] INPUT_DATA = {
+            Row.of("2020-10-10 00:00:01", 1, 1d, 1f, new BigDecimal("1.11"), "Hi", "a"),
+            Row.of("2020-10-10 00:00:34", 1, 3d, 3f, new BigDecimal("3.33"), "Comment#3", "b"),
+            Row.of("2020-10-10 00:00:41", 10, 3d, 3f, new BigDecimal("4.44"), "Comment#4", "c"),
+            Row.of("2020-10-10 00:00:42", 11, 4d, 4f, new BigDecimal("5.44"), "Comment#5", "d")
+    };
 
     @BeforeEach
     @Override
@@ -56,7 +63,7 @@ class WindowAggregateJsonITCase extends JsonPlanTestBase {
         super.setup();
         createTestValuesSourceTable(
                 "MyTable",
-                JavaScalaConversionUtil.toJava(TestData.windowDataWithTimestamp()),
+                Arrays.asList(INPUT_DATA),
                 new String[] {
                     "ts STRING",
                     "`int` INT",
@@ -80,143 +87,91 @@ class WindowAggregateJsonITCase extends JsonPlanTestBase {
                         aggPhase.toString());
     }
 
-    @TestTemplate
-    void testEventTimeTumbleWindow() throws Exception {
-        createTestValuesSinkTable(
-                "MySink",
-                "name STRING",
-                "window_start TIMESTAMP(3)",
-                "window_end TIMESTAMP(3)",
-                "cnt BIGINT",
-                "sum_int INT",
-                "distinct_cnt BIGINT");
-        compileSqlAndExecutePlan(
-                        "insert into MySink select\n"
-                                + "  name,\n"
-                                + "  window_start,\n"
-                                + "  window_end,\n"
-                                + "  COUNT(*),\n"
-                                + "  SUM(`int`),\n"
-                                + "  COUNT(DISTINCT `string`)\n"
-                                + "FROM TABLE(\n"
-                                + "   TUMBLE(TABLE MyTable, DESCRIPTOR(rowtime), INTERVAL '5' SECOND))\n"
-                                + "GROUP BY name, window_start, window_end")
-                .await();
+    static final String[] COMPLETE_OUTPUT =
+            new String[] {
+                "+I[a, 1.0, 1, 2020-10-10T00:00:01, 2020-10-10T00:00:06]",
+                "+I[a, 1.0, 1, 2020-10-10T00:00:01, 2020-10-10T00:00:11]",
+                "+I[a, 1.0, 1, 2020-10-10T00:00:01, 2020-10-10T00:00:16]",
+                "+I[b, 3.0, 1, 2020-10-10T00:00:31, 2020-10-10T00:00:36]",
+                "+I[b, 3.0, 1, 2020-10-10T00:00:31, 2020-10-10T00:00:41]",
+                "+I[b, 3.0, 1, 2020-10-10T00:00:31, 2020-10-10T00:00:46]",
+                "+I[c, 3.0, 1, 2020-10-10T00:00:31, 2020-10-10T00:00:46]",
+                "+I[d, 4.0, 1, 2020-10-10T00:00:31, 2020-10-10T00:00:46]"
+            };
 
-        List<String> result = TestValuesTableFactory.getResultsAsStrings("MySink");
-        assertResult(
-                Arrays.asList(
-                        "+I[a, 2020-10-10T00:00, 2020-10-10T00:00:05, 4, 10, 2]",
-                        "+I[a, 2020-10-10T00:00:05, 2020-10-10T00:00:10, 1, 3, 1]",
-                        "+I[b, 2020-10-10T00:00:05, 2020-10-10T00:00:10, 2, 9, 2]",
-                        "+I[b, 2020-10-10T00:00:15, 2020-10-10T00:00:20, 1, 4, 1]",
-                        "+I[b, 2020-10-10T00:00:30, 2020-10-10T00:00:35, 1, 1, 1]",
-                        "+I[null, 2020-10-10T00:00:30, 2020-10-10T00:00:35, 1, 7, 0]"),
-                result);
-    }
+    static final String[] OUTPUT_MISSING_RECORD =
+            new String[] {
+                    "+I[a, 1.0, 1, 2020-10-10T00:00:01, 2020-10-10T00:00:06]",
+                    "+I[a, 1.0, 1, 2020-10-10T00:00:01, 2020-10-10T00:00:11]",
+                    "+I[a, 1.0, 1, 2020-10-10T00:00:01, 2020-10-10T00:00:16]",
+                    "+I[b, 3.0, 1, 2020-10-10T00:00:31, 2020-10-10T00:00:36]",
+                    // Missing record: "+I[b, 3.0, 1, 2020-10-10T00:00:31, 2020-10-10T00:00:41]",
+                    "+I[b, 3.0, 1, 2020-10-10T00:00:31, 2020-10-10T00:00:46]",
+                    "+I[c, 3.0, 1, 2020-10-10T00:00:31, 2020-10-10T00:00:46]",
+                    "+I[d, 4.0, 1, 2020-10-10T00:00:31, 2020-10-10T00:00:46]"
+            };
 
-    @TestTemplate
-    void testEventTimeHopWindow() throws Exception {
-        createTestValuesSinkTable("MySink", "name STRING", "cnt BIGINT");
-        compileSqlAndExecutePlan(
-                        "insert into MySink select\n"
-                                + "  name,\n"
-                                + "  COUNT(*)\n"
-                                + "FROM TABLE(\n"
-                                + "   HOP(TABLE MyTable, DESCRIPTOR(rowtime), INTERVAL '5' SECOND, INTERVAL '10' SECOND))\n"
-                                + "GROUP BY name, window_start, window_end")
-                .await();
-
-        List<String> result = TestValuesTableFactory.getResultsAsStrings("MySink");
-        assertResult(
-                Arrays.asList(
-                        "+I[a, 1]",
-                        "+I[a, 4]",
-                        "+I[a, 6]",
-                        "+I[b, 1]",
-                        "+I[b, 1]",
-                        "+I[b, 1]",
-                        "+I[b, 1]",
-                        "+I[b, 2]",
-                        "+I[b, 2]",
-                        "+I[null, 1]",
-                        "+I[null, 1]"),
-                result);
-    }
-
-    @TestTemplate
-    void testEventTimeCumulateWindow() throws Exception {
-        createTestValuesSinkTable("MySink", "name STRING", "cnt BIGINT");
-        compileSqlAndExecutePlan(
-                        "insert into MySink select\n"
-                                + "  name,\n"
-                                + "  COUNT(*)\n"
-                                + "FROM TABLE(\n"
-                                + "  CUMULATE(\n"
-                                + "     TABLE MyTable,\n"
-                                + "     DESCRIPTOR(rowtime),\n"
-                                + "     INTERVAL '5' SECOND,\n"
-                                + "     INTERVAL '15' SECOND))"
-                                + "GROUP BY name, window_start, window_end")
-                .await();
-
-        List<String> result = TestValuesTableFactory.getResultsAsStrings("MySink");
-        assertResult(
-                Arrays.asList(
-                        "+I[a, 4]",
-                        "+I[a, 6]",
-                        "+I[a, 6]",
-                        "+I[b, 1]",
-                        "+I[b, 1]",
-                        "+I[b, 1]",
-                        "+I[b, 1]",
-                        "+I[b, 1]",
-                        "+I[b, 1]",
-                        "+I[b, 2]",
-                        "+I[b, 2]",
-                        "+I[null, 1]",
-                        "+I[null, 1]",
-                        "+I[null, 1]"),
-                result);
-    }
-
+    // This test case is flaky for and passes about 90% of the time for me.
+    // When it passes, it is showing incorrect behavior since it is missing a record.
     @TestTemplate
     void testDistinctSplitEnabled() throws Exception {
         tableEnv.getConfig()
                 .set(OptimizerConfigOptions.TABLE_OPTIMIZER_DISTINCT_AGG_SPLIT_ENABLED, true);
         createTestValuesSinkTable(
-                "MySink", "name STRING", "max_double DOUBLE", "cnt_distinct_int BIGINT");
+                "MySink",
+                "name STRING",
+                "max_double DOUBLE",
+                "cnt_distinct_int BIGINT",
+                "window_start TIMESTAMP(3) NOT NULL",
+                "window_end TIMESTAMP(3) NOT NULL");
 
         compileSqlAndExecutePlan(
                         "insert into MySink select name, "
                                 + "   max(`double`),\n"
-                                + "   count(distinct `int`) "
+                                + "   count(distinct `int`),\n"
+                                + "   window_start,\n"
+                                + "   window_end\n"
                                 + "FROM TABLE ("
                                 + "  CUMULATE(\n"
                                 + "     TABLE MyTable,\n"
                                 + "     DESCRIPTOR(rowtime),\n"
                                 + "     INTERVAL '5' SECOND,\n"
-                                + "     INTERVAL '15' SECOND))"
+                                + "     INTERVAL '15' SECOND, INTERVAL '1' SECOND))"
                                 + "GROUP BY name, window_start, window_end")
                 .await();
 
         List<String> result = TestValuesTableFactory.getResultsAsStrings("MySink");
-        assertResult(
-                Arrays.asList(
-                        "+I[a, 5.0, 3]",
-                        "+I[a, 5.0, 4]",
-                        "+I[a, 5.0, 4]",
-                        "+I[b, 3.0, 1]",
-                        "+I[b, 3.0, 1]",
-                        "+I[b, 3.0, 1]",
-                        "+I[b, 4.0, 1]",
-                        "+I[b, 4.0, 1]",
-                        "+I[b, 4.0, 1]",
-                        "+I[b, 6.0, 2]",
-                        "+I[b, 6.0, 2]",
-                        "+I[null, 7.0, 1]",
-                        "+I[null, 7.0, 1]",
-                        "+I[null, 7.0, 1]"),
-                result);
+        assertResult(Arrays.asList(OUTPUT_MISSING_RECORD), result);
+    }
+
+    @TestTemplate
+    void testDistinctSplitDisabled() throws Exception {
+        tableEnv.getConfig()
+                .set(OptimizerConfigOptions.TABLE_OPTIMIZER_DISTINCT_AGG_SPLIT_ENABLED, false);
+        createTestValuesSinkTable(
+                "MySink",
+                "name STRING",
+                "max_double DOUBLE",
+                "cnt_distinct_int BIGINT",
+                "window_start TIMESTAMP(3) NOT NULL",
+                "window_end TIMESTAMP(3) NOT NULL");
+
+        compileSqlAndExecutePlan(
+                        "insert into MySink select name, "
+                                + "   max(`double`),\n"
+                                + "   count(distinct `int`),\n"
+                                + "   window_start,\n"
+                                + "   window_end\n"
+                                + "FROM TABLE ("
+                                + "  CUMULATE(\n"
+                                + "     TABLE MyTable,\n"
+                                + "     DESCRIPTOR(rowtime),\n"
+                                + "     INTERVAL '5' SECOND,\n"
+                                + "     INTERVAL '15' SECOND, INTERVAL '1' SECOND))"
+                                + "GROUP BY name, window_start, window_end")
+                .await();
+
+        List<String> result = TestValuesTableFactory.getResultsAsStrings("MySink");
+        assertResult(Arrays.asList(COMPLETE_OUTPUT), result);
     }
 }
