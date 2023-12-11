@@ -45,7 +45,6 @@ import org.apache.flink.test.junit5.MiniClusterExtension;
 
 import org.apache.commons.collections.CollectionUtils;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.MethodOrderer.OrderAnnotation;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.TestInstance;
@@ -68,6 +67,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -163,6 +164,8 @@ public abstract class RestoreTestBase implements TableTestProgramRunner {
                     List<String> expectedResults = getExpectedResults(sinkTestStep, tableName);
                     final boolean shouldComplete =
                             CollectionUtils.isEqualCollection(expectedResults, results);
+                    System.out.println("Results: " + expectedResults);
+                    System.out.println("Expected: " + results);
                     if (shouldComplete) {
                         future.complete(null);
                     }
@@ -173,7 +176,7 @@ public abstract class RestoreTestBase implements TableTestProgramRunner {
      * Execute this test to generate test files. Remember to be using the correct branch when
      * generating the test files.
      */
-    @Disabled
+    //    @Disabled
     @ParameterizedTest
     @MethodSource("supportedPrograms")
     @Order(0)
@@ -186,7 +189,7 @@ public abstract class RestoreTestBase implements TableTestProgramRunner {
                 .set(
                         TableConfigOptions.PLAN_COMPILE_CATALOG_OBJECTS,
                         TableConfigOptions.CatalogPlanCompilation.SCHEMA);
-
+        tEnv.getConfig().set(TableConfigOptions.PLAN_FORCE_RECOMPILE, true);
         for (SourceTestStep sourceTestStep : program.getSetupSourceTestSteps()) {
             final String id = TestValuesTableFactory.registerData(sourceTestStep.dataBeforeRestore);
             final Map<String, String> options = new HashMap<>();
@@ -214,7 +217,17 @@ public abstract class RestoreTestBase implements TableTestProgramRunner {
         compiledPlan.writeToFile(getPlanPath(program, getLatestMetadata()));
 
         final TableResult tableResult = compiledPlan.execute();
-        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).get();
+        CompletableFuture<Void> all =
+                CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]));
+        // Wait on all to be completed
+        //all.get();
+        try {
+            all.get(5, TimeUnit.SECONDS);
+        } catch (TimeoutException e) {
+            System.out.println(TestValuesTableFactory.getRawResultsAsStrings("MySink"));
+            throw new Exception("Here");
+            //throw e;
+        }
         final JobClient jobClient = tableResult.getJobClient().get();
         final String savepoint =
                 jobClient
@@ -223,7 +236,12 @@ public abstract class RestoreTestBase implements TableTestProgramRunner {
         CommonTestUtils.waitForJobStatus(jobClient, Collections.singletonList(JobStatus.FINISHED));
         final Path savepointPath = Paths.get(new URI(savepoint));
         final Path savepointDirPath = getSavepointPath(program, getLatestMetadata());
-        Files.createDirectories(savepointDirPath);
+        // Delete directory savepointDirPath if it already exists
+        if (Files.exists(savepointDirPath)) {
+            Files.walk(savepointDirPath).map(Path::toFile).forEach(java.io.File::delete);
+        } else {
+            Files.createDirectories(savepointDirPath);
+        }
         Files.move(savepointPath, savepointDirPath, StandardCopyOption.ATOMIC_MOVE);
     }
 
