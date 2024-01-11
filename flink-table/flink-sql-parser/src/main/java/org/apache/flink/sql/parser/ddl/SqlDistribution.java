@@ -67,6 +67,15 @@ public class SqlDistribution extends SqlCall {
     @Override
     public void unparse(SqlWriter writer, int leftPrec, int rightPrec) {
         writer.newlineAndIndent();
+
+        if (bucketColumns.size() == 0 && bucketCount != null) {
+            writer.keyword("DISTRIBUTED INTO");
+            bucketCount.unparse(writer, leftPrec, rightPrec);
+            writer.keyword("BUCKETS");
+            writer.newlineAndIndent();
+            return;
+        }
+
         writer.keyword("DISTRIBUTED BY");
         if (distributionKind != null) {
             writer.print(distributionKind);
@@ -74,9 +83,12 @@ public class SqlDistribution extends SqlCall {
         SqlWriter.Frame bucketFrame = writer.startList("(", ")");
         bucketColumns.unparse(writer, leftPrec, rightPrec);
         writer.endList(bucketFrame);
-        writer.keyword("INTO");
-        bucketCount.unparse(writer, leftPrec, rightPrec);
-        writer.keyword("BUCKETS");
+
+        if (bucketCount != null) {
+            writer.keyword("INTO");
+            bucketCount.unparse(writer, leftPrec, rightPrec);
+            writer.keyword("BUCKETS");
+        }
         writer.newlineAndIndent();
     }
 

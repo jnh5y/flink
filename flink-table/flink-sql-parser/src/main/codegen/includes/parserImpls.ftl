@@ -1353,7 +1353,7 @@ SqlCreate SqlCreateTable(Span s, boolean replace, boolean isTemporary) :
         comment = SqlLiteral.createCharString(p, getPos());
     }]
     [
-        <DISTRIBUTED> <BY>
+        <DISTRIBUTED> [<BY>
                 (
                 <HASH> {
                     distributionKind = "HASH";
@@ -1368,12 +1368,15 @@ SqlCreate SqlCreateTable(Span s, boolean replace, boolean isTemporary) :
                 )
                     {
         bucketColumns = ParenthesizedSimpleIdentifierList();
-                }
+                }]
+                    [
         <INTO>
             {
         bucketCount = Literal();
             }
-        <BUCKETS> {
+        <BUCKETS>
+            ]
+            {
         distribution = new SqlDistribution(getPos(), distributionKind, bucketColumns, bucketCount);
             }
     ]
