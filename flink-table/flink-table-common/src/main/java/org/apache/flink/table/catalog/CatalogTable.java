@@ -151,12 +151,14 @@ public interface CatalogTable extends CatalogBaseTable {
     }
 
     /** Distribution specification. */
-    public class TableDistribution {
+    @PublicEvolving
+    class TableDistribution {
 
         private final Kind kind;
         private final @Nullable Integer bucketCount;
         private final List<String> bucketKeys;
 
+        @PublicEvolving
         public TableDistribution(
                 Kind kind, @Nullable Integer bucketCount, List<String> bucketKeys) {
             this.kind = kind;
@@ -179,6 +181,7 @@ public interface CatalogTable extends CatalogBaseTable {
             return new TableDistribution(Kind.RANGE, bucketCount, bucketKeys);
         }
 
+        @PublicEvolving
         public enum Kind {
             UNKNOWN,
             HASH,
