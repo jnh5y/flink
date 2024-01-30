@@ -19,12 +19,14 @@
 package org.apache.flink.sql.parser.ddl;
 
 import org.apache.calcite.sql.SqlCall;
+import org.apache.calcite.sql.SqlIdentifier;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.SqlNode;
 import org.apache.calcite.sql.SqlNodeList;
 import org.apache.calcite.sql.SqlNumericLiteral;
 import org.apache.calcite.sql.SqlOperator;
 import org.apache.calcite.sql.SqlSpecialOperator;
+import org.apache.calcite.sql.SqlUtil;
 import org.apache.calcite.sql.SqlWriter;
 import org.apache.calcite.sql.parser.SqlParserPos;
 import org.apache.calcite.util.ImmutableNullableList;
@@ -43,13 +45,13 @@ public class SqlDistribution extends SqlCall {
     private static final SqlSpecialOperator OPERATOR =
             new SqlSpecialOperator("DISTRIBUTED BY", SqlKind.OTHER);
 
-    private final String distributionKind;
+    private final SqlIdentifier distributionKind;
     private final SqlNodeList bucketColumns;
     private final SqlNumericLiteral bucketCount;
 
     public SqlDistribution(
             SqlParserPos pos,
-            @Nullable String distributionKind,
+            @Nullable SqlIdentifier distributionKind,
             @Nullable SqlNodeList bucketColumns,
             @Nullable SqlNumericLiteral bucketCount) {
         super(pos);
@@ -82,7 +84,8 @@ public class SqlDistribution extends SqlCall {
 
         writer.keyword("DISTRIBUTED BY");
         if (distributionKind != null) {
-            writer.print(distributionKind);
+            SqlUtil.unparseSqlIdentifierSyntax(writer, distributionKind, true);
+//            distributionKind.unparse(writer, leftPrec, rightPrec);
         }
         SqlWriter.Frame bucketFrame = writer.startList("(", ")");
         bucketColumns.unparse(writer, leftPrec, rightPrec);
@@ -97,7 +100,10 @@ public class SqlDistribution extends SqlCall {
     }
 
     public Optional<String> getDistributionKind() {
-        return Optional.ofNullable(distributionKind);
+        if (distributionKind == null) {
+            return Optional.empty();
+        }
+        return Optional.of(distributionKind.getSimple());
     }
 
     public SqlNumericLiteral getBucketCount() {

@@ -18,6 +18,7 @@
 package org.apache.flink.table.catalog;
 
 import org.apache.flink.annotation.PublicEvolving;
+import org.apache.flink.table.api.ValidationException;
 import org.apache.flink.table.utils.EncodingUtils;
 
 import javax.annotation.Nullable;
@@ -84,6 +85,24 @@ public class TableDistribution {
         UNKNOWN,
         HASH,
         RANGE
+    }
+
+    public static Kind getKind(Optional<String> kind) {
+        if (kind.isPresent()) {
+            switch (kind.get().toUpperCase()) {
+                case "HASH":
+                    return Kind.HASH;
+                case "RANGE":
+                    return Kind.RANGE;
+                default:
+                    throw new ValidationException(
+                            String.format(
+                                    "Unsupported distribution kind '%s'. Supported kinds are HASH and RANGE.",
+                                    kind.get()));
+            }
+        } else {
+            return Kind.UNKNOWN;
+        }
     }
 
     public Kind getKind() {

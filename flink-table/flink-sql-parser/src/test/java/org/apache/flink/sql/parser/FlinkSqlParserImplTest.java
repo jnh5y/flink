@@ -932,7 +932,7 @@ class FlinkSqlParserImplTest extends SqlParserTest {
     void testCreateTableWithDistribution() {
         final String sql = buildDistributionInput("DISTRIBUTED BY HASH(a, h) INTO 6 BUCKETS\n");
         final String expected =
-                buildDistributionOutput("DISTRIBUTED BY HASH(`A`, `H`) INTO 6 BUCKETS\n");
+                buildDistributionOutput("DISTRIBUTED BY `HASH` (`A`, `H`) INTO 6 BUCKETS\n");
         sql(sql).ok(expected);
     }
 
@@ -940,14 +940,8 @@ class FlinkSqlParserImplTest extends SqlParserTest {
     void testCreateTableWithRangeDistribution() {
         final String sql = buildDistributionInput("DISTRIBUTED BY RANGE(a, h) INTO 6 BUCKETS\n");
         final String expected =
-                buildDistributionOutput("DISTRIBUTED BY RANGE(`A`, `H`) INTO 6 BUCKETS\n");
+                buildDistributionOutput("DISTRIBUTED BY `RANGE` (`A`, `H`) INTO 6 BUCKETS\n");
         sql(sql).ok(expected);
-    }
-
-    @Test
-    void testCreateTableWithRandomDistribution() {
-        final String sql = buildDistributionInput("DISTRIBUTED BY ^RANDOM^(a, h) INTO 6 BUCKETS\n");
-        sql(sql).fails("(?s).*Encountered \"RANDOM\" at line 7, column 16.*");
     }
 
     @Test
@@ -961,7 +955,7 @@ class FlinkSqlParserImplTest extends SqlParserTest {
     @Test
     void testCreateTableWithDistributionAlgorithmWithoutBuckets() {
         final String sql = buildDistributionInput("DISTRIBUTED BY RANGE(a, h)\n");
-        final String expected = buildDistributionOutput("DISTRIBUTED BY RANGE(`A`, `H`)\n");
+        final String expected = buildDistributionOutput("DISTRIBUTED BY `RANGE` (`A`, `H`)\n");
         sql(sql).ok(expected);
     }
 
@@ -1034,7 +1028,7 @@ class FlinkSqlParserImplTest extends SqlParserTest {
                         + "  `H` VARCHAR,\n"
                         + "  PRIMARY KEY (`A`, `B`)\n"
                         + ")\n"
-                        + "DISTRIBUTED BY HASH(`A`, `H`) INTO 6 BUCKETS\n"
+                        + "DISTRIBUTED BY `HASH` (`A`, `H`) INTO 6 BUCKETS\n"
                         + "WITH (\n"
                         + "  'connector' = 'kafka',\n"
                         + "  'kafka.topic' = 'log.test'\n"

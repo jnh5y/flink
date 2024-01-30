@@ -604,6 +604,17 @@ public class SqlDdlToOperationConverterTest extends SqlNodeToOperationConversion
                         "Invalid bucket key 'f3'. A bucket key for a distribution must reference a physical column in the schema. Available columns are: [a]");
     }
 
+    @Test
+    public void testCreateTableInvalidDistributionAlgorithm() {
+        final String sql =
+                "create table derivedTable(\n" + "  a int\n" + ")\n" + "DISTRIBUTED BY RANDOM(a)";
+
+        assertThatThrownBy(() -> parseAndConvert(sql))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining(
+                        "Unsupported distribution kind 'RANDOM'. Supported kinds are HASH and RANGE.");
+    }
+
     // TODO Discuss this case.
     @Test
     public void testMergingCreateTableAsWitDistribution() {

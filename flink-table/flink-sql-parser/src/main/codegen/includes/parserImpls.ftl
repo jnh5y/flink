@@ -1367,7 +1367,7 @@ SqlNumericLiteral IntoBuckets(SqlParserPos startPos) :
 
 SqlDistribution SqlDistribution(SqlParserPos startPos) :
 {
-    String distributionKind = null;
+    SqlIdentifier distributionKind = null;
     SqlNumericLiteral bucketCount = null;
     SqlNodeList bucketColumns = SqlNodeList.EMPTY;
     SqlDistribution distribution = null;
@@ -1378,8 +1378,8 @@ SqlDistribution SqlDistribution(SqlParserPos startPos) :
         |
         (
             <BY> (
-                <HASH> { distributionKind = "HASH"; }
-                | <RANGE> { distributionKind = "RANGE"; }
+                <IDENTIFIER> { distributionKind = new SqlIdentifier(Identifier(), getPos()); }
+                | <RANGE> { distributionKind = new SqlIdentifier("RANGE", getPos()); }
                 | { distributionKind = null; }
         )
             { bucketColumns = ParenthesizedSimpleIdentifierList(); }

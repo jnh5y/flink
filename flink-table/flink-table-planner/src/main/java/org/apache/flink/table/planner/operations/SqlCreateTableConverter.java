@@ -243,12 +243,7 @@ class SqlCreateTableConverter {
 
         Optional<TableDistribution> derivedTabledDistribution = Optional.empty();
         if (sqlCreateTable.getDistribution() != null) {
-            TableDistribution.Kind kind =
-                    TableDistribution.Kind.valueOf(
-                            sqlCreateTable
-                                    .getDistribution()
-                                    .getDistributionKind()
-                                    .orElse("UNKNOWN"));
+            TableDistribution.Kind kind = TableDistribution.getKind(sqlCreateTable.getDistribution().getDistributionKind());
             Integer bucketCount = null;
             SqlNumericLiteral count = sqlCreateTable.getDistribution().getBucketCount();
             if (count != null && count.isInteger()) {
