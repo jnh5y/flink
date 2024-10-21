@@ -18,6 +18,7 @@
 
 package org.apache.flink.table.planner.plan.nodes.exec.common;
 
+import org.apache.flink.table.planner.plan.nodes.exec.stream.StreamExecMatch;
 import org.apache.flink.table.test.program.SinkTestStep;
 import org.apache.flink.table.test.program.SourceTestStep;
 import org.apache.flink.table.test.program.TableTestProgram;
@@ -121,6 +122,27 @@ public class MatchRecognizeTestPrograms {
                     .build();
 
     static final Row[] BEFORE_DATA = {
+        Row.of("2020-10-10 00:00:01", 9, 1),
+        Row.of("2020-10-10 00:00:01", 8, 2),
+        Row.of("2020-10-10 00:00:01", 10, 3),
+        Row.of("2020-10-10 00:00:04", 7, 4),
+        Row.of("2020-10-10 00:00:06", 5, 6),
+        Row.of("2020-10-10 00:00:07", 8, 5),
+        Row.of("2020-10-10 00:00:12", 3, 7),
+        Row.of("2020-10-10 00:00:16", 4, 9),
+        Row.of("2020-10-10 00:00:32", 7, 10),
+        Row.of("2020-10-10 00:00:33", 9, 12),
+        Row.of("2020-10-10 00:00:34", 5, 11)
+    };
+
+    static final Row[] AFTER_DATA = {
+        Row.of("2020-10-10 00:00:41", 3, 13),
+        Row.of("2020-10-10 00:00:42", 11, 16),
+        Row.of("2020-10-10 00:00:43", 12, 15),
+        Row.of("2020-10-10 00:00:44", 13, 14)
+    };
+
+    static final Row[] BEFORE_DATA_WITH_OUT_OF_ORDER_DATA = {
         Row.of("2020-10-10 00:00:01", 10, 3),
         Row.of("2020-10-10 00:00:01", 8, 2),
         Row.of("2020-10-10 00:00:01", 9, 1),
@@ -136,7 +158,7 @@ public class MatchRecognizeTestPrograms {
         Row.of("2020-10-10 00:00:34", 5, 11)
     };
 
-    static final Row[] AFTER_DATA = {
+    static final Row[] AFTER_DATA_WITH_OUT_OF_ORDER_DATA = {
         Row.of("2020-10-10 00:00:33", 9, 12),
         Row.of("2020-10-10 00:00:41", 3, 13),
         Row.of("2020-10-10 00:00:42", 11, 16),
@@ -163,7 +185,7 @@ public class MatchRecognizeTestPrograms {
                     .setupTableSink(
                             SinkTestStep.newBuilder("MySink")
                                     .addSchema("first bigint", "last bigint", "up bigint")
-                                    .consumedBeforeRestore(Row.of(10L, 8L, 9L), Row.of(7L, 5L, 8L))
+                                    .consumedBeforeRestore(Row.of(9L, 8L, 10L), Row.of(7L, 5L, 8L))
                                     .consumedAfterRestore(Row.of(9L, 3L, 11L))
                                     .build())
                     .runSql(getEventTimeSql("ORDER BY rowtime"))
