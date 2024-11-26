@@ -17,6 +17,8 @@
 
 package org.apache.flink.table.planner.plan.rules.logical;
 
+import com.google.common.collect.ImmutableList;
+
 import org.apache.flink.table.api.TableException;
 import org.apache.flink.table.planner.plan.utils.AggregateUtil;
 import org.apache.flink.util.Preconditions;
@@ -819,6 +821,7 @@ public final class FlinkAggregateExpandDistinctAggregatesRule extends RelOptRule
                             false,
                             aggCall.isApproximate(),
                             false,
+                            ImmutableList.of(),
                             newArgs,
                             newFilterArg,
                             null,
@@ -913,6 +916,7 @@ public final class FlinkAggregateExpandDistinctAggregatesRule extends RelOptRule
                             false,
                             aggCall.isApproximate(),
                             false,
+                            ImmutableList.of(),
                             newArgs,
                             -1,
                             null,

@@ -4307,6 +4307,7 @@ public class RelBuilder {
                     distinct,
                     approximate,
                     ignoreNulls,
+                    Collections.emptyList(),
                     ImmutableList.of(),
                     -1,
                     null,

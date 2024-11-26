@@ -19,7 +19,6 @@ package org.apache.flink.table.planner.plan.rules.logical
 
 import org.apache.flink.table.planner.functions.sql.FlinkSqlOperatorTable
 import org.apache.flink.table.planner.plan.metadata.FlinkRelMetadataQuery
-
 import com.google.common.collect.ImmutableList
 import org.apache.calcite.plan.{RelOptRule, RelOptRuleCall}
 import org.apache.calcite.plan.RelOptRule.{any, operand}
@@ -28,6 +27,7 @@ import org.apache.calcite.rel.core.{Aggregate, AggregateCall, RelFactories}
 import org.apache.calcite.rel.core.Aggregate.Group
 import org.apache.calcite.tools.RelBuilderFactory
 
+import java.util.Collections
 import scala.collection.JavaConversions._
 import scala.collection.mutable
 
@@ -94,6 +94,7 @@ class AggregateReduceGroupingRule(relBuilderFactory: RelBuilderFactory)
           false,
           false,
           false,
+          Collections.emptyList(),
           ImmutableList.of(column),
           -1,
           null,

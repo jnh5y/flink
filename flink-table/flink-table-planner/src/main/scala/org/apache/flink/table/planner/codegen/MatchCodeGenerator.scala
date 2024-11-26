@@ -54,6 +54,7 @@ import org.apache.calcite.tools.RelBuilder
 
 import java.lang.{Long => JLong}
 import java.util
+import java.util.Collections
 
 /**
  * A code generator for generating CEP related functions.
@@ -675,6 +676,7 @@ class MatchCodeGenerator(
             false,
             false,
             false,
+            Collections.emptyList(),
             a.exprIndices,
             -1,
             null,

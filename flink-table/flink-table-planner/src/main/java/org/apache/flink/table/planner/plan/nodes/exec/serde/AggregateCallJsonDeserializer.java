@@ -18,6 +18,8 @@
 
 package org.apache.flink.table.planner.plan.nodes.exec.serde;
 
+import com.google.common.collect.ImmutableList;
+
 import org.apache.flink.annotation.Internal;
 
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.core.JsonParser;
@@ -85,6 +87,7 @@ final class AggregateCallJsonDeserializer extends StdDeserializer<AggregateCall>
                 distinct,
                 approximate,
                 ignoreNulls,
+                ImmutableList.of(),
                 argList,
                 filterArg,
                 null,

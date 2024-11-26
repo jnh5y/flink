@@ -1012,6 +1012,7 @@ class FlinkRelMdHandlerTestBase {
       false,
       false,
       false,
+      ImmutableList.of(),
       Seq(Integer.valueOf(3)).toList,
       -1,
       null,

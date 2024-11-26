@@ -18,6 +18,8 @@
 
 package org.apache.flink.table.planner.calcite;
 
+import com.google.common.collect.ImmutableList;
+
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.table.api.TableException;
 import org.apache.flink.table.api.ValidationException;
@@ -451,6 +453,7 @@ public final class RelTimeIndicatorConverter extends RelHomogeneousShuttle {
                                         call.isDistinct(),
                                         false,
                                         false,
+                                        ImmutableList.of(),
                                         call.getArgList(),
                                         call.filterArg,
                                         null,
