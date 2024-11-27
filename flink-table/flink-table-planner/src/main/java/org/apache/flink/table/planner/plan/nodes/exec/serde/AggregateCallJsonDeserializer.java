@@ -18,10 +18,9 @@
 
 package org.apache.flink.table.planner.plan.nodes.exec.serde;
 
-import com.google.common.collect.ImmutableList;
-
 import org.apache.flink.annotation.Internal;
 
+import org.apache.flink.shaded.guava32.com.google.common.collect.ImmutableList;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.core.JsonParser;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.DeserializationContext;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.JsonNode;

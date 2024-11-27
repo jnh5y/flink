@@ -50,6 +50,7 @@ import org.apache.flink.table.types.logical._
 import org.apache.flink.table.types.logical.LogicalTypeRoot._
 import org.apache.flink.table.types.logical.utils.LogicalTypeChecks
 import org.apache.flink.table.types.utils.DataTypeUtils
+
 import org.apache.calcite.rel.`type`._
 import org.apache.calcite.rel.RelCollations
 import org.apache.calcite.rel.core.{Aggregate, AggregateCall}
@@ -62,6 +63,7 @@ import org.apache.calcite.sql.validate.SqlMonotonicity
 import java.time.Duration
 import java.util
 import java.util.Collections
+
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -860,7 +862,8 @@ object AggregateUtil extends Enumeration {
             null,
             RelCollations.EMPTY,
             call.getType,
-            call.getName)
+            call.getName
+          )
         } else {
           call
         }

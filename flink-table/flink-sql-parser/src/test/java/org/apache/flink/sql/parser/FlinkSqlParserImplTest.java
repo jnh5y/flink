@@ -132,6 +132,30 @@ class FlinkSqlParserImplTest extends SqlParserTest {
     @Disabled
     @Test
     void testStringAgg() {}
+
+    @Disabled
+    @Test
+    void testArrayFunction() {}
+
+    @Disabled
+    @Test
+    void testPercentileDiscBigQuery() {}
+
+    @Disabled
+    @Test
+    void testArrayQueryConstructor() {}
+
+    @Disabled
+    @Test
+    void testMssqlConvert() {}
+
+    @Disabled
+    @Test
+    void testPercentileContBigQuery() {}
+
+    @Disabled
+    @Test
+    void testConvertAndTranslate() {}
     // END
 
     @Test

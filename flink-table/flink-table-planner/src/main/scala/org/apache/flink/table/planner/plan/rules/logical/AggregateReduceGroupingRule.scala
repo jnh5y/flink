@@ -19,6 +19,7 @@ package org.apache.flink.table.planner.plan.rules.logical
 
 import org.apache.flink.table.planner.functions.sql.FlinkSqlOperatorTable
 import org.apache.flink.table.planner.plan.metadata.FlinkRelMetadataQuery
+
 import com.google.common.collect.ImmutableList
 import org.apache.calcite.plan.{RelOptRule, RelOptRuleCall}
 import org.apache.calcite.plan.RelOptRule.{any, operand}
@@ -28,6 +29,7 @@ import org.apache.calcite.rel.core.Aggregate.Group
 import org.apache.calcite.tools.RelBuilderFactory
 
 import java.util.Collections
+
 import scala.collection.JavaConversions._
 import scala.collection.mutable
 
@@ -100,7 +102,8 @@ class AggregateReduceGroupingRule(relBuilderFactory: RelBuilderFactory)
           null,
           RelCollations.EMPTY,
           fieldType,
-          fieldName)
+          fieldName
+        )
     }.toList
 
     val newAggCalls = aggCallsForDroppedGrouping ++ agg.getAggCallList

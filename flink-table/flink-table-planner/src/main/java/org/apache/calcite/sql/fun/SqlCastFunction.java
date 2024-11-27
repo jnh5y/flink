@@ -16,12 +16,10 @@
  */
 package org.apache.calcite.sql.fun;
 
-import org.apache.flink.table.planner.calcite.FlinkTypeFactory;
-import org.apache.flink.table.types.logical.utils.LogicalTypeCasts;
-
 import com.google.common.collect.ImmutableSetMultimap;
 import com.google.common.collect.SetMultimap;
 import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rel.type.RelDataTypeFamily;
 import org.apache.calcite.sql.SqlCall;
 import org.apache.calcite.sql.SqlCallBinding;
@@ -38,15 +36,24 @@ import org.apache.calcite.sql.SqlUtil;
 import org.apache.calcite.sql.SqlWriter;
 import org.apache.calcite.sql.type.InferTypes;
 import org.apache.calcite.sql.type.SqlOperandCountRanges;
+import org.apache.calcite.sql.type.SqlReturnTypeInference;
 import org.apache.calcite.sql.type.SqlTypeFamily;
-import org.apache.calcite.sql.type.SqlTypeName;
+import org.apache.calcite.sql.type.SqlTypeMappingRule;
 import org.apache.calcite.sql.type.SqlTypeUtil;
 import org.apache.calcite.sql.validate.SqlMonotonicity;
-import org.apache.calcite.sql.validate.SqlValidatorImpl;
+import org.apache.calcite.sql.validate.SqlValidator;
 
 import java.text.Collator;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
+import static com.google.common.base.Preconditions.checkArgument;
+import static java.util.Objects.requireNonNull;
+import static org.apache.calcite.sql.type.SqlTypeUtil.isArray;
+import static org.apache.calcite.sql.type.SqlTypeUtil.isCollection;
+import static org.apache.calcite.sql.type.SqlTypeUtil.isMap;
+import static org.apache.calcite.sql.type.SqlTypeUtil.isRow;
 import static org.apache.calcite.util.Static.RESOURCE;
 
 /**
@@ -57,11 +64,6 @@ import static org.apache.calcite.util.Static.RESOURCE;
  * <p>Can be used for both {@link SqlCall} and {@link org.apache.calcite.rex.RexCall}. Note that the
  * {@code SqlCall} has two operands (expression and type), while the {@code RexCall} has one operand
  * (expression) and the type is obtained from {@link org.apache.calcite.rex.RexNode#getType()}.
- *
- * <p>The class was copied over because of CALCITE-5017, in order to workaround the method {@link
- * SqlTypeUtil#canCastFrom(RelDataType, RelDataType, boolean)}. Line 141 in {@link
- * #checkOperandTypes(SqlCallBinding, boolean)} and new method {@link #canCastFrom(RelDataType,
- * RelDataType)}.
  *
  * @see SqlCastOperator
  */
@@ -88,29 +90,111 @@ public class SqlCastFunction extends SqlFunction {
     // ~ Constructors -----------------------------------------------------------
 
     public SqlCastFunction() {
-        super("CAST", SqlKind.CAST, null, InferTypes.FIRST_KNOWN, null, SqlFunctionCategory.SYSTEM);
+        this(SqlKind.CAST.toString(), SqlKind.CAST);
+    }
+
+    public SqlCastFunction(String name, SqlKind kind) {
+        super(
+                name,
+                kind,
+                returnTypeInference(kind == SqlKind.SAFE_CAST),
+                InferTypes.FIRST_KNOWN,
+                null,
+                SqlFunctionCategory.SYSTEM);
+        checkArgument(kind == SqlKind.CAST || kind == SqlKind.SAFE_CAST, kind);
     }
 
     // ~ Methods ----------------------------------------------------------------
 
-    @Override
-    public RelDataType inferReturnType(SqlOperatorBinding opBinding) {
-        assert opBinding.getOperandCount() == 2;
-        RelDataType ret = opBinding.getOperandType(1);
-        RelDataType firstType = opBinding.getOperandType(0);
-        ret = opBinding.getTypeFactory().createTypeWithNullability(ret, firstType.isNullable());
-        if (opBinding instanceof SqlCallBinding) {
-            SqlCallBinding callBinding = (SqlCallBinding) opBinding;
-            SqlNode operand0 = callBinding.operand(0);
+    static SqlReturnTypeInference returnTypeInference(boolean safe) {
+        return opBinding -> {
+            assert opBinding.getOperandCount() == 2;
+            final RelDataType ret =
+                    deriveType(
+                            opBinding.getTypeFactory(),
+                            opBinding.getOperandType(0),
+                            opBinding.getOperandType(1),
+                            safe);
 
-            // dynamic parameters and null constants need their types assigned
-            // to them using the type they are casted to.
-            if (SqlUtil.isNullLiteral(operand0, false) || (operand0 instanceof SqlDynamicParam)) {
-                final SqlValidatorImpl validator = (SqlValidatorImpl) callBinding.getValidator();
-                validator.setValidatedNodeType(operand0, ret);
+            if (opBinding instanceof SqlCallBinding) {
+                final SqlCallBinding callBinding = (SqlCallBinding) opBinding;
+                SqlNode operand0 = callBinding.operand(0);
+
+                // dynamic parameters and null constants need their types assigned
+                // to them using the type they are casted to.
+                if (SqlUtil.isNullLiteral(operand0, false) || operand0 instanceof SqlDynamicParam) {
+                    callBinding.getValidator().setValidatedNodeType(operand0, ret);
+                }
             }
+            return ret;
+        };
+    }
+
+    /** Derives the type of "CAST(expression AS targetType)". */
+    public static RelDataType deriveType(
+            RelDataTypeFactory typeFactory,
+            RelDataType expressionType,
+            RelDataType targetType,
+            boolean safe) {
+        return createTypeWithNullabilityFromExpr(typeFactory, expressionType, targetType, safe);
+    }
+
+    private static RelDataType createTypeWithNullabilityFromExpr(
+            RelDataTypeFactory typeFactory,
+            RelDataType expressionType,
+            RelDataType targetType,
+            boolean safe) {
+        boolean isNullable = expressionType.isNullable() || safe;
+
+        if (isCollection(expressionType)) {
+            RelDataType expressionElementType = expressionType.getComponentType();
+            RelDataType targetElementType = targetType.getComponentType();
+            requireNonNull(expressionElementType, () -> "componentType of " + expressionType);
+            requireNonNull(targetElementType, () -> "componentType of " + targetType);
+            RelDataType newElementType =
+                    createTypeWithNullabilityFromExpr(
+                            typeFactory, expressionElementType, targetElementType, safe);
+            return isArray(targetType)
+                    ? SqlTypeUtil.createArrayType(typeFactory, newElementType, isNullable)
+                    : SqlTypeUtil.createMultisetType(typeFactory, newElementType, isNullable);
         }
-        return ret;
+
+        if (isRow(expressionType)) {
+            final int fieldCount = expressionType.getFieldCount();
+            final List<RelDataType> typeList = new ArrayList<>(fieldCount);
+            for (int i = 0; i < fieldCount; ++i) {
+                RelDataType expressionElementType = expressionType.getFieldList().get(i).getType();
+                RelDataType targetElementType = targetType.getFieldList().get(i).getType();
+                typeList.add(
+                        createTypeWithNullabilityFromExpr(
+                                typeFactory, expressionElementType, targetElementType, safe));
+            }
+            return typeFactory.createTypeWithNullability(
+                    typeFactory.createStructType(typeList, targetType.getFieldNames()), isNullable);
+        }
+
+        if (isMap(expressionType)) {
+            RelDataType expressionKeyType =
+                    requireNonNull(
+                            expressionType.getKeyType(), () -> "keyType of " + expressionType);
+            RelDataType expressionValueType =
+                    requireNonNull(
+                            expressionType.getValueType(), () -> "valueType of " + expressionType);
+            RelDataType targetKeyType =
+                    requireNonNull(targetType.getKeyType(), () -> "keyType of " + targetType);
+            RelDataType targetValueType =
+                    requireNonNull(targetType.getValueType(), () -> "valueType of " + targetType);
+
+            RelDataType keyType =
+                    createTypeWithNullabilityFromExpr(
+                            typeFactory, expressionKeyType, targetKeyType, safe);
+            RelDataType valueType =
+                    createTypeWithNullabilityFromExpr(
+                            typeFactory, expressionValueType, targetValueType, safe);
+            SqlTypeUtil.createMapType(typeFactory, keyType, valueType, isNullable);
+        }
+
+        return typeFactory.createTypeWithNullability(targetType, isNullable);
     }
 
     @Override
@@ -135,9 +219,12 @@ public class SqlCastFunction extends SqlFunction {
         if (SqlUtil.isNullLiteral(left, false) || left instanceof SqlDynamicParam) {
             return true;
         }
-        RelDataType validatedNodeType = callBinding.getValidator().getValidatedNodeType(left);
-        RelDataType returnType = SqlTypeUtil.deriveType(callBinding, right);
-        if (!canCastFrom(returnType, validatedNodeType)) {
+        final SqlValidator validator = callBinding.getValidator();
+        final RelDataType validatedNodeType = validator.getValidatedNodeType(left);
+        final RelDataType returnType = SqlTypeUtil.deriveType(callBinding, right);
+        final SqlTypeMappingRule mappingRule = validator.getTypeMappingRule();
+
+        if (!SqlTypeUtil.canCastFrom(returnType, validatedNodeType, mappingRule)) {
             if (throwOnFailure) {
                 throw callBinding.newError(
                         RESOURCE.cannotCastValue(
@@ -159,26 +246,7 @@ public class SqlCastFunction extends SqlFunction {
         return true;
     }
 
-    private boolean canCastFrom(RelDataType toType, RelDataType fromType) {
-        SqlTypeName fromTypeName = fromType.getSqlTypeName();
-        switch (fromTypeName) {
-            case ARRAY:
-            case MAP:
-            case MULTISET:
-            case STRUCTURED:
-            case ROW:
-            case OTHER:
-                // We use our casting checker logic only for these types,
-                //  as the differences with calcite casting checker logic generates issues
-                //  later in the calcite stack.
-                return LogicalTypeCasts.supportsExplicitCast(
-                        FlinkTypeFactory.toLogicalType(fromType),
-                        FlinkTypeFactory.toLogicalType(toType));
-            default:
-                return SqlTypeUtil.canCastFrom(toType, fromType, true);
-        }
-    }
-
+    @Override
     public SqlSyntax getSyntax() {
         return SqlSyntax.SPECIAL;
     }

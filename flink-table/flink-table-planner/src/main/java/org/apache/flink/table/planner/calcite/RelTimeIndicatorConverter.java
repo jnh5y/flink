@@ -18,8 +18,6 @@
 
 package org.apache.flink.table.planner.calcite;
 
-import com.google.common.collect.ImmutableList;
-
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.table.api.TableException;
 import org.apache.flink.table.api.ValidationException;
@@ -56,6 +54,8 @@ import org.apache.flink.table.types.logical.LocalZonedTimestampType;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.TimestampType;
 import org.apache.flink.util.Preconditions;
+
+import org.apache.flink.shaded.guava32.com.google.common.collect.ImmutableList;
 
 import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.rel.RelCollations;

@@ -17,11 +17,11 @@
 
 package org.apache.flink.table.planner.plan.rules.logical;
 
-import com.google.common.collect.ImmutableList;
-
 import org.apache.flink.table.api.TableException;
 import org.apache.flink.table.planner.plan.utils.AggregateUtil;
 import org.apache.flink.util.Preconditions;
+
+import org.apache.flink.shaded.guava32.com.google.common.collect.ImmutableList;
 
 import org.apache.calcite.linq4j.Ord;
 import org.apache.calcite.plan.Contexts;
@@ -195,7 +195,8 @@ public final class FlinkAggregateExpandDistinctAggregatesRule extends RelOptRule
                 && argLists.size() == 1
                 && aggregate.getGroupType() == Group.SIMPLE) {
             final Pair<List<Integer>, Integer> pair =
-                    com.google.common.collect.Iterables.getOnlyElement(argLists);
+                    org.apache.flink.shaded.guava32.com.google.common.collect.Iterables
+                            .getOnlyElement(argLists);
             final RelBuilder relBuilder = call.builder();
             convertMonopole(relBuilder, aggregate, pair.left, pair.right);
             call.transformTo(relBuilder.build());
@@ -354,7 +355,7 @@ public final class FlinkAggregateExpandDistinctAggregatesRule extends RelOptRule
         // Add aggregate A (see the reference example above), the top aggregate
         // to handle the rest of the aggregation that the bottom aggregate hasn't handled
         final List<AggregateCall> topAggregateCalls =
-                com.google.common.collect.Lists.newArrayList();
+                org.apache.flink.shaded.guava32.com.google.common.collect.Lists.newArrayList();
         // Use the remapped arguments for the (non)distinct aggregate calls
         int nonDistinctAggCallProcessedSoFar = 0;
         for (AggregateCall aggCall : originalAggCalls) {
@@ -382,8 +383,9 @@ public final class FlinkAggregateExpandDistinctAggregatesRule extends RelOptRule
                 // If aggregate B had a COUNT aggregate call the corresponding aggregate at
                 // aggregate A must be SUM. For other aggregates, it remains the same.
                 final List<Integer> newArgs =
-                        com.google.common.collect.Lists.newArrayList(
-                                bottomGroupSet.size() + nonDistinctAggCallProcessedSoFar);
+                        org.apache.flink.shaded.guava32.com.google.common.collect.Lists
+                                .newArrayList(
+                                        bottomGroupSet.size() + nonDistinctAggCallProcessedSoFar);
                 if (aggCall.getAggregation().getKind() == SqlKind.COUNT) {
                     newCall =
                             AggregateCall.create(
@@ -458,8 +460,11 @@ public final class FlinkAggregateExpandDistinctAggregatesRule extends RelOptRule
             }
         }
 
-        final com.google.common.collect.ImmutableList<ImmutableBitSet> groupSets =
-                com.google.common.collect.ImmutableList.copyOf(groupSetTreeSet);
+        final org.apache.flink.shaded.guava32.com.google.common.collect.ImmutableList<
+                        ImmutableBitSet>
+                groupSets =
+                        org.apache.flink.shaded.guava32.com.google.common.collect.ImmutableList
+                                .copyOf(groupSetTreeSet);
         final ImmutableBitSet fullGroupSet = ImmutableBitSet.union(groupSets);
 
         final List<AggregateCall> distinctAggCalls = new ArrayList<>();
@@ -642,10 +647,14 @@ public final class FlinkAggregateExpandDistinctAggregatesRule extends RelOptRule
         return builder.build();
     }
 
-    private static com.google.common.collect.ImmutableList<ImmutableBitSet> remap(
-            ImmutableBitSet groupSet, Iterable<ImmutableBitSet> bitSets) {
-        final com.google.common.collect.ImmutableList.Builder<ImmutableBitSet> builder =
-                com.google.common.collect.ImmutableList.builder();
+    private static org.apache.flink.shaded.guava32.com.google.common.collect.ImmutableList<
+                    ImmutableBitSet>
+            remap(ImmutableBitSet groupSet, Iterable<ImmutableBitSet> bitSets) {
+        final org.apache.flink.shaded.guava32.com.google.common.collect.ImmutableList.Builder<
+                        ImmutableBitSet>
+                builder =
+                        org.apache.flink.shaded.guava32.com.google.common.collect.ImmutableList
+                                .builder();
         for (ImmutableBitSet bitSet : bitSets) {
             builder.add(remap(groupSet, bitSet));
         }
@@ -691,7 +700,8 @@ public final class FlinkAggregateExpandDistinctAggregatesRule extends RelOptRule
 
         // Create an aggregate on top, with the new aggregate list.
         final List<AggregateCall> newAggCalls =
-                com.google.common.collect.Lists.newArrayList(aggregate.getAggCallList());
+                org.apache.flink.shaded.guava32.com.google.common.collect.Lists.newArrayList(
+                        aggregate.getAggCallList());
         rewriteAggCalls(newAggCalls, argList, sourceOf);
         final int cardinality = aggregate.getGroupSet().cardinality();
         relBuilder.push(
@@ -864,7 +874,8 @@ public final class FlinkAggregateExpandDistinctAggregatesRule extends RelOptRule
         //  'left.f0 = right.f0 and left.f1 = right.f1 and ...'
         // where {f0, f1, ...} are the GROUP BY fields.
         final List<RelDataTypeField> distinctFields = relBuilder.peek().getRowType().getFieldList();
-        final List<RexNode> conditions = com.google.common.collect.Lists.newArrayList();
+        final List<RexNode> conditions =
+                org.apache.flink.shaded.guava32.com.google.common.collect.Lists.newArrayList();
         for (i = 0; i < groupCount; ++i) {
             // null values form its own group
             // use "is not distinct from" so that the join condition
@@ -1025,7 +1036,8 @@ public final class FlinkAggregateExpandDistinctAggregatesRule extends RelOptRule
                         relBuilder.build(),
                         ImmutableBitSet.range(projects.size()),
                         null,
-                        com.google.common.collect.ImmutableList.<AggregateCall>of()));
+                        org.apache.flink.shaded.guava32.com.google.common.collect.ImmutableList
+                                .<AggregateCall>of()));
         return relBuilder;
     }
 }
